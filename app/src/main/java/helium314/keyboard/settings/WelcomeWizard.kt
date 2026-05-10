@@ -86,6 +86,7 @@ fun WelcomeWizard(
     }
     var step by rememberSaveable { mutableIntStateOf(determineStep()) }
     var requiresRestart by rememberSaveable { mutableStateOf(false) }
+    var refreshTrigger by androidx.compose.runtime.remember { androidx.compose.runtime.mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(step) {
         if (step == 2)
@@ -325,6 +326,7 @@ fun WelcomeWizard(
                         { step++ },
                         { step-- }
                     ) {
+                        val trigger = refreshTrigger
                         val permission = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                             Manifest.permission.READ_MEDIA_IMAGES
                         } else {
@@ -341,6 +343,7 @@ fun WelcomeWizard(
                                     isGranted = it
                                     if (isGranted)
                                         activity.prefs().edit { putBoolean(setting.key, true) }
+                                    refreshTrigger++
                                 }
                                 SwitchPreference(setting, Defaults.PREF_SUGGEST_SCREENSHOTS, allowCheckedChange = {
                                     if (it && !isGranted) {
