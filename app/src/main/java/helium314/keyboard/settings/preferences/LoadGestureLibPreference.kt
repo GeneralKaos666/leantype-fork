@@ -67,7 +67,10 @@ fun LoadGestureLibPreference(
         file.copyTo(libFile)
         libFile.setReadOnly()
         file.delete()
-        Runtime.getRuntime().exit(0) // exit will restart the app, so library will be loaded
+        onSuccess?.invoke()
+        if (restartOnSuccess) {
+            Runtime.getRuntime().exit(0) // exit will restart the app, so library will be loaded
+        }
     }
     
     fun startDownload() {
