@@ -383,6 +383,7 @@ class SuggestionStripView(context: Context, attrs: AttributeSet?, defStyle: Int)
     }
 
     fun setExternalSuggestionView(view: View?, addCloseButton: Boolean) {
+        if (isShowingEmojiSuggestions) return
         clear()
         if (view == null) {
             isExternalSuggestionVisible = false
