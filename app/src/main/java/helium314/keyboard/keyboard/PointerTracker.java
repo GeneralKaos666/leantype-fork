@@ -745,6 +745,7 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
 
     private void onDownEventInternal(final int x, final int y, final long eventTime) {
         Key key = onDownKey(x, y, eventTime);
+        final boolean isEmojiClipBottomRow = mKeyboard != null && mKeyboard.mId.isEmojiClipBottomRow();
         // Key selection by dragging finger is allowed when 1) key selection by dragging
         // finger is
         // enabled by configuration, 2) this pointer starts dragging from modifier key,
@@ -752,7 +753,7 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
         // pointer's KeyDetector always allows key selection by dragging finger, such as
         // {@link PopupKeysKeyboard}.
         mIsAllowedDraggingFinger = sParams.mKeySelectionByDraggingFinger
-                || (key != null && key.isModifier())
+                || (key != null && key.isModifier() && !(isEmojiClipBottomRow && key.getCode() == KeyCode.ALPHA))
                 || mKeyDetector.alwaysAllowsKeySelectionByDraggingFinger();
         if (key != null && isSwiper(key.getCode()) && !sInGesture) {
             mKeySwipeAllowed = true;
@@ -790,8 +791,9 @@ public final class PointerTracker implements PointerTrackerQueue.Element,
             // (even without sliding input they actually behave the same... this is just
             // about the graphics)
             final int code = key.getCode();
+            final boolean isEmojiClipBottomRow = mKeyboard != null && mKeyboard.mId.isEmojiClipBottomRow();
             mIsInSlidingKeyInput = key.isModifier() && code != KeyCode.CTRL_LOCK && code != KeyCode.ALT_LOCK
-                    && code != KeyCode.FN_LOCK && code != KeyCode.META_LOCK;
+                    && code != KeyCode.FN_LOCK && code != KeyCode.META_LOCK && !(isEmojiClipBottomRow && code == KeyCode.ALPHA);
         }
         mIsInDraggingFinger = true;
     }
