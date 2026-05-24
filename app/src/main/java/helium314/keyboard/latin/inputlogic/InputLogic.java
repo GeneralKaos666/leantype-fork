@@ -2952,7 +2952,13 @@ public final class InputLogic {
         // essentially reverted
         // https://github.com/lineageos/android_packages_inputmethods_LatinIME/commit/ee6de1466bc98e27bd414c9a7451f2aee3f9e721
         // can't find any drawback (performance, neither when setting nor when reading)
-        final CharSequence chosenWordWithSuggestions = getTextWithSuggestionSpan(mLatinIME, chosenWord,
+        String wordToCommit = chosenWord;
+        final String expanded = helium314.keyboard.latin.utils.TextExpanderUtils.INSTANCE.getExpandedWord(chosenWord, mLatinIME);
+        final boolean isExpanded = expanded != null;
+        if (isExpanded) {
+            wordToCommit = expanded;
+        }
+        final CharSequence chosenWordWithSuggestions = getTextWithSuggestionSpan(mLatinIME, wordToCommit,
                 mSuggestedWords, getDictionaryFacilitatorLocale());
         if (DebugFlags.DEBUG_ENABLED) {
             long runTimeMillis = System.currentTimeMillis() - startTimeMillis;
@@ -2982,7 +2988,9 @@ public final class InputLogic {
             startTimeMillis = System.currentTimeMillis();
         }
         // Add the word to the user history dictionary
-        performAdditionToUserHistoryDictionary(settingsValues, chosenWord, ngramContext);
+        if (!isExpanded) {
+            performAdditionToUserHistoryDictionary(settingsValues, chosenWord, ngramContext);
+        }
         if (DebugFlags.DEBUG_ENABLED) {
             long runTimeMillis = System.currentTimeMillis() - startTimeMillis;
             Log.d(TAG, "commitChosenWord() : " + runTimeMillis + " ms to run "
