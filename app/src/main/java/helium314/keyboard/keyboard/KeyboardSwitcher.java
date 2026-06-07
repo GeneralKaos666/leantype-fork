@@ -93,6 +93,10 @@ public final class KeyboardSwitcher implements KeyboardState.SwitchActions {
         return sInstance;
     }
 
+    public LatinIME getLatinIME() {
+        return mLatinIME;
+    }
+
     private KeyboardSwitcher() {
         // Intentional empty constructor for singleton.
     }

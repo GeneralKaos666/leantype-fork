@@ -660,6 +660,12 @@ class DictionaryFacilitatorImpl : DictionaryFacilitator {
         }
     }
 
+    override fun reloadBlacklist() {
+        for (dictionaryGroup in dictionaryGroups) {
+            dictionaryGroup.reloadBlacklist()
+        }
+    }
+
     override fun clearUserHistoryDictionary(context: Context) {
         for (dictionaryGroup in dictionaryGroups) {
             dictionaryGroup.getSubDict(Dictionary.TYPE_USER_HISTORY)?.clear()
@@ -791,6 +797,12 @@ private class DictionaryGroup(
 
     /** Removes a word from all dictionaries in this group. If the word is in a read-only dictionary, it is blacklisted. */
     fun removeWord(word: String) {
+        addToBlacklist(word)
+        val lowercase = word.lowercase(locale)
+        if (word != lowercase) {
+            addToBlacklist(lowercase)
+        }
+
         // remove from user history
         getSubDict(Dictionary.TYPE_USER_HISTORY)?.removeUnigramEntryDynamically(word)
 
@@ -800,26 +812,11 @@ private class DictionaryGroup(
         val contactsDict = getSubDict(Dictionary.TYPE_CONTACTS)
         if (contactsDict != null && contactsDict.isInDictionary(word)) {
             contactsDict.removeUnigramEntryDynamically(word) // will be gone until next reload of dict
-            addToBlacklist(word)
-            return
         }
 
         val appsDict = getSubDict(Dictionary.TYPE_APPS)
         if (appsDict != null && appsDict.isInDictionary(word)) {
             appsDict.removeUnigramEntryDynamically(word) // will be gone until next reload of dict
-            addToBlacklist(word)
-            return
-        }
-
-        val mainDict = mainDict ?: return
-        if (mainDict.isValidWord(word)) {
-            addToBlacklist(word)
-            return
-        }
-
-        val lowercase = word.lowercase(locale)
-        if (getDict(Dictionary.TYPE_MAIN)!!.isValidWord(lowercase)) {
-            addToBlacklist(lowercase)
         }
     }
 
@@ -911,6 +908,25 @@ private class DictionaryGroup(
                     blacklistFile.writeText(newLines.joinToString("\n"))
                 } catch (e: IOException) {
                     Log.e(TAG, "Exception while trying to remove word \"$word\" to blacklist ${blacklistFile.name}", e)
+                }
+            }
+        }
+    }
+
+    fun reloadBlacklist() {
+        if (blacklistFile?.isFile != true) {
+            synchronized(blacklistLock) {
+                blacklist.clear()
+            }
+            return
+        }
+        scope.launch {
+            synchronized(blacklistLock) {
+                try {
+                    blacklist.clear()
+                    blacklist.addAll(blacklistFile.readLines())
+                } catch (e: IOException) {
+                    Log.e(TAG, "Exception while trying to read blacklist from ${blacklistFile.name}", e)
                 }
             }
         }

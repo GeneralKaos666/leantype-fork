@@ -1773,6 +1773,10 @@ public class LatinIME extends InputMethodService implements
         mDictionaryFacilitator.removeWord(word);
     }
 
+    public DictionaryFacilitator getDictionaryFacilitator() {
+        return mDictionaryFacilitator;
+    }
+
     @Override
     public void removeExternalSuggestions() {
         setNeutralSuggestionStrip();

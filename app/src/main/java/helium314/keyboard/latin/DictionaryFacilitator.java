@@ -107,6 +107,8 @@ public interface DictionaryFacilitator {
     /** removes the word from all editable dictionaries, and adds it to a blacklist in case it's in a read-only dictionary */
     void removeWord(String word);
 
+    void reloadBlacklist();
+
     void closeDictionaries();
 
     /** main dictionaries are loaded asynchronously after resetDictionaries */
