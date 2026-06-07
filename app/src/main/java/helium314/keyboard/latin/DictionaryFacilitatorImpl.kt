@@ -870,31 +870,53 @@ private class DictionaryGroup(
         else null
     }
 
+    @Volatile
+    private var compiledBlacklistPatterns: List<Regex> = emptyList()
+
+    private fun rebuildCompiledPatterns() {
+        compiledBlacklistPatterns = blacklist.map { pattern ->
+            try {
+                Regex(pattern, RegexOption.IGNORE_CASE)
+            } catch (e: Exception) {
+                Regex(Regex.escape(pattern), RegexOption.IGNORE_CASE)
+            }
+        }
+    }
+
     private val blacklist = hashSetOf<String>().apply {
-        if (blacklistFile?.isFile != true) return@apply
+        val file = blacklistFile
+        if (file?.isFile != true) return@apply
         scope.launch {
             synchronized(blacklistLock) {
                 try {
-                    addAll(blacklistFile.readLines().map { it.lowercase(locale) })
+                    addAll(file.readLines().map { it.lowercase(locale) })
+                    rebuildCompiledPatterns()
                 } catch (e: IOException) {
-                    Log.e(TAG, "Exception while trying to read blacklist from ${blacklistFile.name}", e)
+                    Log.e(TAG, "Exception while trying to read blacklist from ${file.name}", e)
                 }
             }
         }
     }
 
-    fun isBlacklisted(word: String): Boolean = blacklist.contains(word.lowercase(locale))
+    fun isBlacklisted(word: String): Boolean {
+        val patterns = compiledBlacklistPatterns
+        return patterns.any { it.matches(word) }
+    }
 
     fun addToBlacklist(word: String) {
         val lowercase = word.lowercase(locale)
-        if (!blacklist.add(lowercase) || blacklistFile == null) return
+        synchronized(blacklistLock) {
+            if (!blacklist.add(lowercase) || blacklistFile == null) return
+            rebuildCompiledPatterns()
+        }
+        val file = blacklistFile ?: return
         scope.launch {
             synchronized(blacklistLock) {
                 try {
-                    if (blacklistFile.isDirectory) blacklistFile.delete()
-                    blacklistFile.appendText("$lowercase\n")
+                    if (file.isDirectory) file.delete()
+                    file.appendText("$lowercase\n")
                 } catch (e: IOException) {
-                    Log.e(TAG, "Exception while trying to add word \"$lowercase\" to blacklist ${blacklistFile.name}", e)
+                    Log.e(TAG, "Exception while trying to add word \"$lowercase\" to blacklist ${file.name}", e)
                 }
             }
         }
@@ -902,23 +924,29 @@ private class DictionaryGroup(
 
     fun removeFromBlacklist(word: String) {
         val lowercase = word.lowercase(locale)
-        if (!blacklist.remove(lowercase) || blacklistFile == null) return
+        synchronized(blacklistLock) {
+            if (!blacklist.remove(lowercase) || blacklistFile == null) return
+            rebuildCompiledPatterns()
+        }
+        val file = blacklistFile ?: return
         scope.launch {
             synchronized(blacklistLock) {
                 try {
-                    val newLines = blacklistFile.readLines().filterNot { it.lowercase(locale) == lowercase }
-                    blacklistFile.writeText(newLines.joinToString("\n"))
+                    val newLines = file.readLines().filterNot { it.lowercase(locale) == lowercase }
+                    file.writeText(newLines.joinToString("\n"))
                 } catch (e: IOException) {
-                    Log.e(TAG, "Exception while trying to remove word \"$word\" to blacklist ${blacklistFile.name}", e)
+                    Log.e(TAG, "Exception while trying to remove word \"$word\" to blacklist ${file.name}", e)
                 }
             }
         }
     }
 
     fun reloadBlacklist() {
-        if (blacklistFile?.isFile != true) {
+        val file = blacklistFile
+        if (file == null || !file.isFile) {
             synchronized(blacklistLock) {
                 blacklist.clear()
+                rebuildCompiledPatterns()
             }
             return
         }
@@ -926,9 +954,10 @@ private class DictionaryGroup(
             synchronized(blacklistLock) {
                 try {
                     blacklist.clear()
-                    blacklist.addAll(blacklistFile.readLines().map { it.lowercase(locale) })
+                    blacklist.addAll(file.readLines().map { it.lowercase(locale) })
+                    rebuildCompiledPatterns()
                 } catch (e: IOException) {
-                    Log.e(TAG, "Exception while trying to read blacklist from ${blacklistFile.name}", e)
+                    Log.e(TAG, "Exception while trying to read blacklist from ${file.name}", e)
                 }
             }
         }
