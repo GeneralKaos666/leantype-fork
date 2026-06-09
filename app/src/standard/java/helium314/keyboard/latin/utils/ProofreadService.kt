@@ -171,6 +171,8 @@ class ProofreadService(private val context: Context) {
     fun unloadModel() { /* No-op */ }
     fun getSystemPrompt(): String = "Fix grammar and spelling"
     fun setSystemPrompt(prompt: String) { /* No-op */ }
+    fun getTranslateSystemPrompt(): String = ""
+    fun setTranslateSystemPrompt(prompt: String) { /* No-op */ }
     fun getDecoderPath(): String? = null
     fun setDecoderPath(path: String?) { /* No-op */ }
     fun getTokenizerPath(): String? = null

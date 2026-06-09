@@ -222,6 +222,12 @@ class ProofreadService(private val context: Context) {
         sharedPrefs.edit().putString(Settings.PREF_OFFLINE_SYSTEM_PROMPT, prompt).apply()
     }
 
+    fun getTranslateSystemPrompt(): String = sharedPrefs.getString(Settings.PREF_OFFLINE_TRANSLATE_SYSTEM_PROMPT, "") ?: ""
+
+    fun setTranslateSystemPrompt(prompt: String) {
+        sharedPrefs.edit().putString(Settings.PREF_OFFLINE_TRANSLATE_SYSTEM_PROMPT, prompt).apply()
+    }
+
     fun getModelName(): String {
         val path = getModelPath()
         if (path.isNullOrBlank()) return "No Model Selected"
@@ -268,14 +274,15 @@ class ProofreadService(private val context: Context) {
      */
     suspend fun translate(text: String): Result<String> {
         val target = sharedPrefs.getString(Settings.PREF_OFFLINE_TRANSLATE_TARGET_LANGUAGE, Defaults.PREF_OFFLINE_TRANSLATE_TARGET_LANGUAGE) ?: Defaults.PREF_OFFLINE_TRANSLATE_TARGET_LANGUAGE
-        val prompt = "Translate the following text to $target. Output only the translation, nothing else:\n\n"
+        val systemPromptTemplate = getTranslateSystemPrompt().takeIf { it.isNotBlank() } ?: Defaults.PREF_OFFLINE_TRANSLATE_SYSTEM_PROMPT
+        val prompt = systemPromptTemplate.replace("{lang}", target)
         return proofread(text, overridePrompt = prompt)
     }
 
     /**
      * Run llamacpp inference for proofreading/text correction.
      */
-    suspend fun proofread(text: String, overridePrompt: String? = null): Result<String> = withContext(Dispatchers.IO) {
+    suspend fun proofread(text: String, overridePrompt: String? = null, showThinking: Boolean? = null): Result<String> = withContext(Dispatchers.IO) {
         val modelPath = getModelPath()
         if (modelPath.isNullOrBlank()) {
             return@withContext Result.failure(ProofreadException("Model not loaded. Please select a GGUF model file."))
@@ -292,6 +299,11 @@ class ProofreadService(private val context: Context) {
 
         try {
             val maxTokens = sharedPrefs.getInt(Settings.PREF_OFFLINE_MAX_TOKENS, Defaults.PREF_OFFLINE_MAX_TOKENS)
+            val temp = sharedPrefs.getFloat(Settings.PREF_OFFLINE_TEMP, Defaults.PREF_OFFLINE_TEMP)
+            val topP = sharedPrefs.getFloat(Settings.PREF_OFFLINE_TOP_P, Defaults.PREF_OFFLINE_TOP_P)
+            val topK = sharedPrefs.getInt(Settings.PREF_OFFLINE_TOP_K, Defaults.PREF_OFFLINE_TOP_K)
+            val minP = sharedPrefs.getFloat(Settings.PREF_OFFLINE_MIN_P, Defaults.PREF_OFFLINE_MIN_P)
+            val showThinkingVal = showThinking ?: sharedPrefs.getBoolean(Settings.PREF_OFFLINE_SHOW_THINKING, Defaults.PREF_OFFLINE_SHOW_THINKING)
             
             // Build the prompt
             val systemPrompt = overridePrompt ?: getSystemPrompt()
@@ -307,8 +319,17 @@ class ProofreadService(private val context: Context) {
             val helper = ModelHolder.llamaHelper
                 ?: return@withContext Result.failure(ProofreadException("Model not available"))
 
-            // Use predict and collect tokens
-            helper.predict(fullPrompt)
+            // Use predict with custom parameters
+            predictWithParams(
+                helper = helper,
+                prompt = fullPrompt,
+                temp = temp,
+                topP = topP,
+                topK = topK,
+                minP = minP,
+                maxTokens = maxTokens,
+                showThinking = showThinkingVal
+            )
             
             // Collect events until done
             ModelHolder.llmFlow.collect { event ->
@@ -338,8 +359,15 @@ class ProofreadService(private val context: Context) {
                 output
             }
             
-            if (cleanedOutput.isNotBlank()) {
-                Result.success(cleanedOutput)
+            // Post-process to strip thinking/reasoning tags if showThinkingVal is false
+            val finalOutput = if (!showThinkingVal) {
+                stripThinkingTags(cleanedOutput)
+            } else {
+                cleanedOutput
+            }
+
+            if (finalOutput.isNotBlank()) {
+                Result.success(finalOutput)
             } else {
                 Result.success(text)
             }
@@ -349,6 +377,81 @@ class ProofreadService(private val context: Context) {
             ModelHolder.scheduleUnload(context) // Ensure we still schedule unload on error
             Result.failure(ProofreadException(e.message ?: "Unknown error"))
         }
+    }
+
+    private fun predictWithParams(
+        helper: LlamaHelper,
+        prompt: String,
+        temp: Float,
+        topP: Float,
+        topK: Int,
+        minP: Float,
+        maxTokens: Int,
+        showThinking: Boolean
+    ) {
+        try {
+            // Get currentContext via reflection
+            val currentContextField = LlamaHelper::class.java.getDeclaredField("currentContext").apply { isAccessible = true }
+            val currentContext = currentContextField.get(helper) as? Int ?: throw IllegalStateException("Model not loaded yet")
+
+            // Get llama via reflection
+            val llamaField = LlamaHelper::class.java.getDeclaredField("llama\$delegate").apply { isAccessible = true }
+            val llamaLazy = llamaField.get(helper) as Lazy<org.nehuatl.llamacpp.LlamaAndroid>
+            val llama = llamaLazy.value
+
+            // Reset tokenCount and allText
+            val tokenCountField = LlamaHelper::class.java.getDeclaredField("tokenCount").apply { isAccessible = true }
+            tokenCountField.set(helper, 0)
+
+            val allTextField = LlamaHelper::class.java.getDeclaredField("allText").apply { isAccessible = true }
+            allTextField.set(helper, "")
+
+            // Emit Started event
+            helper.sharedFlow.tryEmit(LlamaHelper.LLMEvent.Started(prompt))
+
+            // Build parameters map
+            val params = mutableMapOf<String, Any>(
+                "prompt" to prompt,
+                "emit_partial_completion" to showThinking,
+                "temperature" to temp.toDouble(),
+                "top_p" to topP.toDouble(),
+                "top_k" to topK,
+                "min_p" to minP.toDouble(),
+                "n_predict" to maxTokens
+            )
+
+            // Get completionJob field
+            val completionJobField = LlamaHelper::class.java.getDeclaredField("completionJob").apply { isAccessible = true }
+
+            // Launch completion using helper.scope
+            val job = helper.scope.launch {
+                val startTime = System.currentTimeMillis()
+                try {
+                    llama.launchCompletion(currentContext, params)
+                } catch (e: Throwable) {
+                    Log.e(TAG, "Completion failed", e)
+                    helper.sharedFlow.tryEmit(LlamaHelper.LLMEvent.Error("Completion failed: ${e.message}"))
+                    return@launch
+                }
+                val duration = System.currentTimeMillis() - startTime
+                val allText = allTextField.get(helper) as String
+                val tokenCount = tokenCountField.get(helper) as Int
+                helper.sharedFlow.tryEmit(LlamaHelper.LLMEvent.Done(allText, tokenCount, duration))
+            }
+            completionJobField.set(helper, job)
+        } catch (e: Throwable) {
+            Log.e(TAG, "Failed to setup prediction", e)
+            helper.sharedFlow.tryEmit(LlamaHelper.LLMEvent.Error("Failed to setup prediction: ${e.message}"))
+        }
+    }
+
+    private fun stripThinkingTags(text: String): String {
+        return text
+            .replace(Regex("<thinking>[\\s\\S]*?</thinking>", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("<thought>[\\s\\S]*?</thought>", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("<reasoning>[\\s\\S]*?</reasoning>", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("<details>[\\s\\S]*?</details>", RegexOption.IGNORE_CASE), "")
+            .trim()
     }
 
     class ProofreadException(message: String) : Exception(message)

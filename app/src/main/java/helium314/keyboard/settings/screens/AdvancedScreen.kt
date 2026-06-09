@@ -604,7 +604,25 @@ fun createAdvancedSettings(context: Context) = listOfNotNull(
                 onClick = { showSystemPromptDialog = true }
             )
 
+            var showTranslateSystemPromptDialog by remember { mutableStateOf(false) }
+            if (showTranslateSystemPromptDialog) {
+                TextInputDialog(
+                    title = { Text("Translate System Instruction") },
+                    initialText = service.getTranslateSystemPrompt(),
+                    checkTextValid = { true },
+                    onConfirmed = { 
+                        service.setTranslateSystemPrompt(it)
+                        showTranslateSystemPromptDialog = false 
+                    },
+                    onDismissRequest = { showTranslateSystemPromptDialog = false }
+                )
+            }
 
+            Preference(
+                name = "Translate Instruction",
+                description = service.getTranslateSystemPrompt().takeIf { it.isNotBlank() } ?: "Default",
+                onClick = { showTranslateSystemPromptDialog = true }
+            )
 
             // Target Language for Translation
             val languageSetting = Setting(context, Settings.PREF_OFFLINE_TRANSLATE_TARGET_LANGUAGE, R.string.translate_target_language_title, R.string.translate_target_language_summary) { }
@@ -626,7 +644,48 @@ fun createAdvancedSettings(context: Context) = listOfNotNull(
                 modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp)
             )
 
+            // Temperature
+            SliderPreference(
+                name = stringResource(R.string.offline_temp_title),
+                key = Settings.PREF_OFFLINE_TEMP,
+                default = Defaults.PREF_OFFLINE_TEMP,
+                range = 0.0f..2.0f,
+                description = { String.format("%.2f", it) }
+            )
 
+            // Top-P
+            SliderPreference(
+                name = stringResource(R.string.offline_top_p_title),
+                key = Settings.PREF_OFFLINE_TOP_P,
+                default = Defaults.PREF_OFFLINE_TOP_P,
+                range = 0.0f..1.0f,
+                description = { String.format("%.2f", it) }
+            )
+
+            // Top-K
+            SliderPreference(
+                name = stringResource(R.string.offline_top_k_title),
+                key = Settings.PREF_OFFLINE_TOP_K,
+                default = Defaults.PREF_OFFLINE_TOP_K,
+                range = 1.0f..100.0f,
+                description = { it.toString() }
+            )
+
+            // Min-P
+            SliderPreference(
+                name = stringResource(R.string.offline_min_p_title),
+                key = Settings.PREF_OFFLINE_MIN_P,
+                default = Defaults.PREF_OFFLINE_MIN_P,
+                range = 0.0f..1.0f,
+                description = { String.format("%.2f", it) }
+            )
+
+            // Show Thinking
+            val showThinkingSetting = Setting(context, Settings.PREF_OFFLINE_SHOW_THINKING, R.string.offline_show_thinking_title, R.string.offline_show_thinking_summary) { }
+            SwitchPreference(
+                setting = showThinkingSetting,
+                default = Defaults.PREF_OFFLINE_SHOW_THINKING
+            )
 
             val tokenEntries = context.resources.getStringArray(R.array.offline_max_tokens_entries)
             val tokenValues = context.resources.getStringArray(R.array.offline_max_tokens_values).map { it.toInt() }

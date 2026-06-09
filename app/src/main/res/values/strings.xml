@@ -1204,6 +1204,16 @@ New dictionary:
     <string name="offline_model_summary">Manage local LLM</string>
     <string name="offline_max_tokens_title">Offline AI Max Tokens</string>
     <string name="offline_max_tokens_summary">Maximum length of the generated correction</string>
+    <string name="offline_temp_title">Temperature</string>
+    <string name="offline_temp_summary">Controls randomness: lower is more focused and deterministic</string>
+    <string name="offline_top_p_title">Top-P (Nucleus Sampling)</string>
+    <string name="offline_top_p_summary">Controls diversity of vocabulary: lower cuts off less likely options</string>
+    <string name="offline_top_k_title">Top-K</string>
+    <string name="offline_top_k_summary">Limits choices to K most probable tokens</string>
+    <string name="offline_min_p_title">Min-P</string>
+    <string name="offline_min_p_summary">Minimum probability threshold relative to most likely token</string>
+    <string name="offline_show_thinking_title">Show Thinking</string>
+    <string name="offline_show_thinking_summary">Display reasoning process and internal thinking tokens if the model generates them</string>
     <!-- Placeholder for token options if using a list, but I'll use a Slider or similar if possible. 
          However the user asked for a "list off options", so I'll create entries and entryValues. -->
     <string-array name="offline_max_tokens_entries">

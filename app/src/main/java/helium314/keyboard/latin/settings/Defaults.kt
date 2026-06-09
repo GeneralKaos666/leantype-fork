@@ -153,7 +153,11 @@ object Defaults {
     const val PREF_FORCE_AUTO_CAPS = false
     const val PREF_OFFLINE_TEMP = 0.1f  // Lower for faster, more deterministic proofreading
     const val PREF_OFFLINE_TOP_P = 0.5f  // Lower for faster token sampling
+    const val PREF_OFFLINE_TOP_K = 40
+    const val PREF_OFFLINE_MIN_P = 0.05f
+    const val PREF_OFFLINE_SHOW_THINKING = false
     const val PREF_OFFLINE_SYSTEM_PROMPT = "Correct the grammar and spelling. Output only the corrected text."
+    const val PREF_OFFLINE_TRANSLATE_SYSTEM_PROMPT = "Translate the following text to {lang}. Output only the translation, nothing else:\n\n"
     const val PREF_OFFLINE_MAX_TOKENS = 64  // Accurate (64 tokens) default
     const val PREF_OFFLINE_TRANSLATE_TARGET_LANGUAGE = "French"
     const val PREF_OFFLINE_KEEP_MODEL_LOADED = false

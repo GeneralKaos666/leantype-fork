@@ -159,7 +159,11 @@ public final class Settings implements SharedPreferences.OnSharedPreferenceChang
     public static final String PREF_FORCE_AUTO_CAPS = "force_auto_caps";
     public static final String PREF_OFFLINE_TEMP = "offline_temp";
     public static final String PREF_OFFLINE_TOP_P = "offline_top_p";
+    public static final String PREF_OFFLINE_TOP_K = "offline_top_k";
+    public static final String PREF_OFFLINE_MIN_P = "offline_min_p";
+    public static final String PREF_OFFLINE_SHOW_THINKING = "offline_show_thinking";
     public static final String PREF_OFFLINE_SYSTEM_PROMPT = "offline_system_prompt";
+    public static final String PREF_OFFLINE_TRANSLATE_SYSTEM_PROMPT = "offline_translate_system_prompt";
     public static final String PREF_OFFLINE_TRANSLATE_TARGET_LANGUAGE = "offline_translate_target_language";
     public static final String PREF_OFFLINE_MAX_TOKENS = "offline_max_tokens";
     public static final String PREF_OFFLINE_KEEP_MODEL_LOADED = "offline_keep_model_loaded";
