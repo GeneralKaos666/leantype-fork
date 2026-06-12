@@ -1,0 +1,8 @@
+- Support custom sampling and prompts in offline AI settings
+- Switch offline AI backend from ONNX Runtime to llama.cpp
+- Double tap on touchpad (toolbar key) to select word
+- Add regex expansion support to Text Expander
+- Add option to automatically read and suggest OTP from SMS
+- Add Blocked Words screen with case-insensitive and regex blacklist support
+- Align Arabic diacritics spacing and update layout popup options
+- Fix dictionary crashes and emoji popup preview issues
