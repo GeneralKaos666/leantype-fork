@@ -135,13 +135,13 @@ class ProofreadService(private val context: Context) {
                 val cores = Runtime.getRuntime().availableProcessors()
                 val threads = if (cores <= 4) cores else 4
                 
-                Log.i(TAG, "Loading GGUF model: threads=$threads (cores=$cores), use_mmap=true")
+                Log.i(TAG, "Loading GGUF model: threads=$threads (cores=$cores), use_mmap=false")
 
                 // Construct parameters map
                 val params = mutableMapOf<String, Any>(
                     "model" to modelPath,
                     "model_fd" to modelFd,
-                    "use_mmap" to true,
+                    "use_mmap" to false,
                     "use_mlock" to false,
                     "n_ctx" to 2048,
                     "embedding" to false,
@@ -363,11 +363,21 @@ class ProofreadService(private val context: Context) {
             
             // Build the prompt
             val systemPrompt = overridePrompt ?: getSystemPrompt()
-            val fullPrompt = if (systemPrompt.isNotBlank()) {
-                "$systemPrompt$text"
+            val fullPrompt = if (systemPrompt.contains("{text}")) {
+                systemPrompt.replace("{text}", text)
+            } else if (overridePrompt != null) {
+                // Translation or specific override
+                "Instruction: ${systemPrompt.trim()}\nInput: $text\nOutput:"
             } else {
-                // Default proofreading prompt
-                "Correct the grammar and spelling of the following text. Output only the corrected text, nothing else:\n\n$text"
+                // Default proofreading with few-shot examples for better local model guidance
+                val instruction = systemPrompt.ifBlank { "Correct the grammar and spelling of the input text. Output only the corrected text, nothing else." }
+                "Instruction: ${instruction.trim()}\n\n" +
+                "Input: heko hw r u\n" +
+                "Output: Hello, how are you?\n\n" +
+                "Input: what you name\n" +
+                "Output: What is your name?\n\n" +
+                "Input: $text\n" +
+                "Output:"
             }
             
             // Collect generated text from the flow
@@ -409,11 +419,35 @@ class ProofreadService(private val context: Context) {
 
             val output = generatedText.toString().trim()
 
-            // Strip prompt prefix if model echoed it back
-            val cleanedOutput = if (systemPrompt.isNotBlank() && output.startsWith(systemPrompt, ignoreCase = true)) {
-                output.removePrefix(systemPrompt).trimStart()
-            } else {
-                output
+            // Robust cleaning of the generated output
+            var cleanedOutput = output
+            if (cleanedOutput.startsWith(fullPrompt, ignoreCase = true)) {
+                cleanedOutput = cleanedOutput.substring(fullPrompt.length).trim()
+            } else if (systemPrompt.isNotBlank() && cleanedOutput.startsWith(systemPrompt, ignoreCase = true)) {
+                cleanedOutput = cleanedOutput.substring(systemPrompt.length).trim()
+                if (cleanedOutput.startsWith(text, ignoreCase = true)) {
+                    cleanedOutput = cleanedOutput.substring(text.length).trim()
+                }
+            }
+            
+            // Also strip common prefixes that the model might generate or echo
+            val prefixesToStrip = listOf(
+                "Output:", "Corrected:", "Translation:", "Response:", "Result:",
+                "Output: ", "Corrected: ", "Translation: ", "Response: ", "Result: "
+            )
+            for (prefix in prefixesToStrip) {
+                if (cleanedOutput.startsWith(prefix, ignoreCase = true)) {
+                    cleanedOutput = cleanedOutput.substring(prefix.length).trim()
+                    break
+                }
+            }
+            
+            // If the model wrapped the output in quotes, strip them
+            if (cleanedOutput.startsWith("\"") && cleanedOutput.endsWith("\"")) {
+                cleanedOutput = cleanedOutput.substring(1, cleanedOutput.length - 1).trim()
+            }
+            if (cleanedOutput.startsWith("'") && cleanedOutput.endsWith("'")) {
+                cleanedOutput = cleanedOutput.substring(1, cleanedOutput.length - 1).trim()
             }
             
             // Post-process to strip thinking/reasoning tags if showThinkingVal is false
@@ -423,6 +457,7 @@ class ProofreadService(private val context: Context) {
                 cleanedOutput
             }
 
+            Log.i(TAG, "proofread: input='$text' prompt='$fullPrompt' generated='$output' final='$finalOutput'")
             if (finalOutput.isNotBlank()) {
                 Result.success(finalOutput)
             } else {
