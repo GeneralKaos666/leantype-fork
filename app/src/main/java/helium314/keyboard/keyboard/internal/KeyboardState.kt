@@ -96,6 +96,7 @@ class KeyboardState(private val switchActions: SwitchActions) {
         if (DEBUG_EVENT) {
             Log.d(TAG, "onLoadKeyboard: " + stateToString(autoCapsFlags, recapitalizeMode))
         }
+        switchActions.cancelDoubleTapShiftKeyTimer()
         // Reset alphabet shift state.
         alphabetShiftState.setShiftLocked(false)
         prevMainKeyboardWasShiftLocked = false
